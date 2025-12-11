@@ -53,17 +53,21 @@ async def list_tools() -> list[Tool]:
         Tool(
             name="search_places",
             description=(
-                "茅ヶ崎市内のレストランやグルメスポットを検索します。"
+                "指定された地域のレストランやグルメスポットを検索します。"
                 "Google Maps Places APIのテキスト検索を使用して、"
-                "指定されたクエリに一致する場所を検索します。"
-                "評価が4.0以上の場所のみを返します。"
+                "指定された地域とクエリに一致する場所を検索します。"
+                "評価が指定値以上の場所のみを返します。"
             ),
             inputSchema={
                 "type": "object",
                 "properties": {
+                    "location": {
+                        "type": "string",
+                        "description": "検索する地域名（例: '茅ヶ崎市', '藤沢市', '平塚市', '寒川町', '新宿区'）",
+                    },
                     "query": {
                         "type": "string",
-                        "description": "検索クエリ（例: '茅ヶ崎 ランチ', 'Delicious lunch spots in Chigasaki City'）",
+                        "description": "検索クエリ（例: 'ランチ', 'ディナー', 'カフェ'など。地域名は不要）",
                     },
                     "min_rating": {
                         "type": "number",
@@ -71,7 +75,7 @@ async def list_tools() -> list[Tool]:
                         "default": 4.0,
                     },
                 },
-                "required": ["query"],
+                "required": ["location", "query"],
             },
         ),
     ]
@@ -106,7 +110,8 @@ async def handle_search_places(arguments: dict[str, Any]) -> Sequence[TextConten
     
     Args:
         arguments: {
-            "query": 検索クエリ文字列,
+            "location": 検索する地域名（例: '茅ヶ崎市', '藤沢市'）,
+            "query": 検索クエリ文字列（例: 'ランチ', 'カフェ'）,
             "min_rating": 最小評価（オプション、デフォルト4.0）
         }
     
@@ -122,19 +127,19 @@ async def handle_search_places(arguments: dict[str, Any]) -> Sequence[TextConten
             error_message = "MAPS_API_KEY環境変数が設定されていません。.envファイルを確認してください。"
             return [TextContent(type="text", text=json.dumps({"error": error_message}, ensure_ascii=False))]
     
+    location = arguments.get("location", "")
     query = arguments.get("query", "")
     min_rating = arguments.get("min_rating", 4.0)
     
+    if not location:
+        raise ValueError("地域名が指定されていません。")
     if not query:
         raise ValueError("検索クエリが指定されていません。")
     
     try:
         # Google Maps Places API (New)のテキスト検索を実行
-        # 「茅ヶ崎」を含むクエリとして処理し、場所を検索します
-        # クエリに「茅ヶ崎」が含まれていない場合は、自動的に追加します
-        search_query = query
-        if "茅ヶ崎" not in query and "Chigasaki" not in query:
-            search_query = f"茅ヶ崎 {query}"
+        # 地域名とクエリを組み合わせて検索します
+        search_query = f"{location} {query}"
         
         # Places API (New) Text Searchを実行
         # 新しいAPIエンドポイント: https://places.googleapis.com/v1/places:searchText
@@ -182,6 +187,7 @@ async def handle_search_places(arguments: dict[str, Any]) -> Sequence[TextConten
         # 結果をJSON文字列としてフォーマット
         result_json = json.dumps(
             {
+                "location": location,
                 "query": query,
                 "min_rating": min_rating,
                 "count": len(places),

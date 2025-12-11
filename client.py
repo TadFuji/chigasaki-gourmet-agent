@@ -1,6 +1,6 @@
 """
 MCPクライアント（エージェント）: 
-茅ヶ崎のグルメ検索エージェントとして動作します。
+指定された地域のグルメ検索エージェントとして動作します。
 
 このクライアントは、MCPサーバーに接続し、
 search_placesツールを呼び出してレストラン情報を取得し、
@@ -8,6 +8,7 @@ search_placesツールを呼び出してレストラン情報を取得し、
 """
 
 import asyncio
+import argparse
 import json
 import os
 import sys
@@ -50,15 +51,39 @@ async def main():
             await session.initialize()
             
             print("=" * 60)
-            print("茅ヶ崎グルメ検索エージェント")
+            print("グルメ検索エージェント")
             print("=" * 60)
             print()
             
-            # エージェントのクエリ: 茅ヶ崎市内のおいしいランチスポットを検索
-            query = "Delicious lunch spots in Chigasaki City"
-            min_rating = 4.0
+            # コマンドライン引数を解析
+            parser = argparse.ArgumentParser(
+                description="指定された地域のグルメスポットを検索します"
+            )
+            parser.add_argument(
+                "location",
+                nargs="?",
+                default="茅ヶ崎市",
+                help="検索する地域名（例: 茅ヶ崎市, 藤沢市, 平塚市, 寒川町, 新宿区）"
+            )
+            parser.add_argument(
+                "-q", "--query",
+                default="ランチ",
+                help="検索クエリ（例: ランチ, ディナー, カフェ）"
+            )
+            parser.add_argument(
+                "-r", "--min-rating",
+                type=float,
+                default=4.0,
+                help="最小評価（デフォルト: 4.0）"
+            )
             
-            print(f"🔍 検索中: {query}")
+            args = parser.parse_args()
+            location = args.location
+            query = args.query
+            min_rating = args.min_rating
+            
+            print(f"📍 地域: {location}")
+            print(f"🔍 検索クエリ: {query}")
             print(f"⭐ 最小評価: {min_rating}以上")
             print()
             
@@ -68,6 +93,7 @@ async def main():
                 result = await session.call_tool(
                     "search_places",
                     arguments={
+                        "location": location,
                         "query": query,
                         "min_rating": min_rating,
                     },
@@ -88,7 +114,8 @@ async def main():
                         return
                     
                     # 結果をユーザーフレンドリーな形式で表示
-                    print(f"✅ 検索完了: {data['count']}件のスポットが見つかりました")
+                    location_name = data.get('location', '指定地域')
+                    print(f"✅ 検索完了: {location_name}で{data['count']}件のスポットが見つかりました")
                     print()
                     print("-" * 60)
                     
